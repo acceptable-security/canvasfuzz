@@ -1,0 +1,224 @@
+<html>
+	<head>
+		<script language="javaScript">
+			const knownClasses = {};
+			let canvas, context;
+			const exampleOutputs = [];
+			let tryMethodCount = 0;
+			let successMethodCount = 0;
+			let failedMethodCount = 0;
+
+			function exploreObject(object) {
+				const className = object.constructor.name;
+
+				// Create an enty for this class
+				if ( !knownClasses[className] ) {
+					knownClasses[className] = {
+						methods: [],
+						fields: [],
+						found: {},
+						outputs: []
+					}
+				}
+
+				for ( const key in object ) {
+					// Make sure we don't look at one object twice
+					if ( knownClasses[className].found[key] ) {
+						continue;
+					}
+					
+					// Declare found classes
+					knownClasses[className].found[key] = true;
+
+					if ( typeof object[key] == 'function' ) {
+						// TODO - make available but less common
+						if ( object[key].length == 0 ) {
+							continue;
+						}
+
+						// Found a function 
+						knownClasses[className].methods.push({
+							name: key,
+							args: object[key].length
+						});
+					}
+					else {
+						// Found a field
+						knownClasses[className].fields.push({
+							name: key,
+							type: typeof object[key]
+						});
+					}
+				}
+			}
+
+			// Generate a value to fuzz a function with
+			function generateFuzzValue(className) {
+				const generators = [
+					() => 1,
+					() => -1,
+					() => -1.000000001,
+					() => -100000000,
+					() => 100000000,
+					() => Math.random * 1000000,
+					() => true,
+					() => false,
+					() => "",
+					() => "hi",
+					() => undefined,
+					() => null,
+					() => NaN,
+					() => {
+						let a = "";
+
+						for ( let i = 0; i < 1000000; i++ ) {
+							a += "A";		
+						}
+
+						return a;
+					},
+					() => 'pink',
+					() => 'blue',
+					() => 'black',
+					() => 'https://i.imgur.com/PqntHMn.png',
+					() => [],
+					() => [1],
+					() => {
+						let l = [];
+
+						for ( let i = 0; i < Math.floor(Math.random() * 10); i++ ) {
+							l.push(generateFuzzValue());
+						}
+
+						return l
+					},
+					() => {
+						const exampleOutputs = knownClasses[className].outputs;
+
+						if ( exampleOutputs.length == 0 ) {
+							return 0;
+						}
+
+						return exampleOutputs[Math.floor(Math.random() * exampleOutputs.length)];
+					},
+					() => {
+						return () => {};
+					},
+					() => {
+						return () => {
+							return generateFuzzValue();
+						}
+					}
+				];
+
+				const rand = Math.floor(Math.random() * generators.length);
+				return generators[rand]();
+			}
+
+			// Generate N fuzz values
+			function generateMultipleFuzzValue(amt, className) {
+				const l = [];
+
+				for ( let i = 0; i < amt; i++ ) {
+					l.push(generateFuzzValue(className));
+				}
+
+				return l;
+			}
+
+			// Generate random values and pas them to the fields
+			// TODO - mainpulate values aswell
+			function fuzzRandomField(obj, className) {
+				const fields = knownClasses[className].fields;
+				const field = fields[Math.floor(Math.random() * fields.length)];
+
+				// console.log("Fuzzing field " + className + "." + field.name);
+
+				obj[field.name] = generateFuzzValue(className);
+			}
+
+			// Generate random values and pass them to the function
+			function fuzzRandomMethod(obj, className) {
+				const methods = knownClasses[className].methods;
+				const method = methods[Math.floor(Math.random() * methods.length)];
+
+				// console.log("Fuzzing method " + className + "." + method.name);
+
+				tryMethodCount += 1;
+				try {
+					const output = obj[method.name].apply(obj, generateMultipleFuzzValue(method.args, className));
+
+					if ( output != undefined ) {
+						knownClasses[className].outputs.push(output); // TODO - per class this
+					}
+
+					successMethodCount += 1;
+				}
+				catch ( err ) {
+					failedMethodCount += 1;
+				}
+			}
+
+
+			function fuzzObject(obj) {
+				const className = obj.constructor.name;
+
+				if ( !knownClasses[className] ) {
+					return;
+				}
+
+				try {
+					// This can be changed to get different results
+					if ( Math.random() > 0.8 ) {
+						fuzzRandomField(obj, className);
+					}
+					else {
+						fuzzRandomMethod(obj, className);
+					}
+				}
+				catch (err) {
+
+				}
+			}
+
+			function initCanvasFuzz() {
+				canvas = document.getElementById('cnv');
+				context = canvas.getContext('2d');
+
+				exploreObject(context);
+
+				
+				let fuzzOps = 0;
+
+				for ( let i = 0; i < 10; i++ ) {
+					window.setInterval(() => {
+						fuzzObject(context);
+						fuzzOps += 1;
+					}, 1);
+				}
+
+				window.setInterval(() => {
+					document.getElementById("fops").innerHTML = fuzzOps.toString();
+					document.getElementById("success").innerHTML = ((successMethodCount / tryMethodCount) * 100).toFixed(2);
+
+					fuzzOps = 0;
+					successMethodCount = 0;
+					failedMethodCount = 0;
+					tryMethodCount = 0;
+				}, 1000);
+			}
+		</script>
+	</head>
+
+	<body onload="initCanvasFuzz()">
+		<p>
+			Currently doing <span id="fops"></span> FOPS
+		</p>
+		<p>
+			Currently running at <span id="success"></span>% success
+		</p>
+		<p>
+			<canvas width="640" height="480" id="cnv"></canvas>
+		</p>
+	</body>
+</html>
