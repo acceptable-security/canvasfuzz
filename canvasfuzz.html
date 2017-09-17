@@ -155,7 +155,8 @@
 							return generateFuzzValue();
 						}
 					},
-					() => new Uint8Array(Math.floor(randomFn() * 1000000))
+					() => new Uint8Array(Math.floor(randomFn() * 1000000)),
+					() => new Image()
 				];
 
 				all_generators = num_generators.concat(void_generators)
@@ -233,7 +234,7 @@
 
 				try {
 					// This can be changed to get different results
-					if ( randomFn() > 0.8 ) {
+					if ( randomFn() > 0.75 ) {
 						fuzzRandomField(obj, className);
 					}
 					else {
