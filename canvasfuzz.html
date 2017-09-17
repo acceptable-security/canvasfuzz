@@ -3,7 +3,19 @@
 		<script src="./random.js"></script>
 		<script language="javaScript">
 			let randomFn;
-			const knownClasses = {};
+			const knownClasses = {
+				"CanvasRenderingContext2D": {
+					methods: [],
+					fields: [],
+					found: {
+						// Blacklist
+						fillRect: true
+					},
+					outputs: []
+				}
+				
+			};
+
 			let canvas, context;
 			const exampleOutputs = [];
 			let tryMethodCount = 0;
@@ -13,7 +25,7 @@
 
 			function log(text) {
 				logList = "* " + text + "\n" + logList;
-				logList = logList.substring(0, 2000);
+				document.getElementById("logs").innerHTML = logList;
 			}
 
 			function exploreObject(object) {
@@ -267,7 +279,10 @@
 				window.setInterval(() => {
 					document.getElementById("fops").innerHTML = fuzzOps.toString();
 					document.getElementById("success").innerHTML = ((successMethodCount / tryMethodCount) * 100).toFixed(2);
-					document.getElementById("logs").innerHTML = logList;
+						
+
+					// Clip the logs so nothing crazy happens
+					logList = logList.substring(0, 2000);
 
 					fuzzOps = 0;
 					successMethodCount = 0;
@@ -294,7 +309,7 @@
 
 		<p>
 			<b>Logs</b>
-			<textarea id="logs" rows=50 cols=100 style="border-style: solid;"></textarea>
+			<textarea id="logs" rows=30 cols=60 style="border-style: solid;"></textarea>
 		</p>
 	</body>
 </html>
