@@ -146,7 +146,15 @@
 
 				tryMethodCount += 1;
 				try {
-					const output = obj[method.name].apply(obj, generateMultipleFuzzValue(method.args, className));
+					let amt = method.args;
+
+					// Occassionally clip off the end
+					if ( Math.random() > 0.9 ) {
+						amt = Math.floor(amt * Math.random()) + 1;
+					}
+					
+					const args = generateMultipleFuzzValue(amt, className);
+					const output = obj[method.name].apply(obj, args);
 
 					if ( output != undefined ) {
 						knownClasses[className].outputs.push(output); // TODO - per class this
