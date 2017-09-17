@@ -1,12 +1,20 @@
 <html>
 	<head>
+		<script src="./random.js"></script>
 		<script language="javaScript">
+			let randomFn;
 			const knownClasses = {};
 			let canvas, context;
 			const exampleOutputs = [];
 			let tryMethodCount = 0;
 			let successMethodCount = 0;
 			let failedMethodCount = 0;
+			let logList = "";
+
+			function log(text) {
+				logList = "* " + text + "\n" + logList;
+				logList = logList.substring(0, 2000);
+			}
 
 			function exploreObject(object) {
 				const className = object.constructor.name;
@@ -54,20 +62,29 @@
 
 			// Generate a value to fuzz a function with
 			function generateFuzzValue(className) {
-				const generators = [
+				const num_generators = [
 					() => 1,
 					() => -1,
 					() => -1.000000001,
 					() => -100000000,
 					() => 100000000,
-					() => Math.random * 1000000,
 					() => true,
 					() => false,
-					() => "",
-					() => "hi",
-					() => undefined,
+					() => randomFn() * 1000000,
+					randomFn
+				];
+
+				const void_generators = [
 					() => null,
+					() => undefined,
 					() => NaN,
+				]
+
+				const str_generators = [
+					() => "",
+					() => "hello my name is fuzzio",
+					() => '#abc',
+					() => '#abcdef',
 					() => {
 						let a = "";
 
@@ -76,7 +93,16 @@
 						}
 
 						return a;
-					},
+					}
+				];
+
+				const list_generators = [
+					() => {
+						return generateMultipleFuzzValue(Math.floor(randomFn() * 20), className).join(' ');
+					}
+				];
+
+				const generators = [
 					() => 'pink',
 					() => 'blue',
 					() => 'black',
@@ -86,7 +112,7 @@
 					() => {
 						let l = [];
 
-						for ( let i = 0; i < Math.floor(Math.random() * 10); i++ ) {
+						for ( let i = 0; i < Math.floor(randomFn() * 10); i++ ) {
 							l.push(generateFuzzValue());
 						}
 
@@ -99,7 +125,7 @@
 							return 0;
 						}
 
-						return exampleOutputs[Math.floor(Math.random() * exampleOutputs.length)];
+						return exampleOutputs[Math.floor(randomFn() * exampleOutputs.length)];
 					},
 					() => {
 						return () => {};
@@ -108,10 +134,11 @@
 						return () => {
 							return generateFuzzValue();
 						}
-					}
+					},
+					() => new Uint8Array(Math.floor(randomFn() * 1000000))
 				];
 
-				const rand = Math.floor(Math.random() * generators.length);
+				const rand = Math.floor(randomFn() * generators.length);
 				return generators[rand]();
 			}
 
@@ -130,9 +157,9 @@
 			// TODO - mainpulate values aswell
 			function fuzzRandomField(obj, className) {
 				const fields = knownClasses[className].fields;
-				const field = fields[Math.floor(Math.random() * fields.length)];
+				const field = fields[Math.floor(randomFn() * fields.length)];
 
-				// console.log("Fuzzing field " + className + "." + field.name);
+				log("Fuzzing field " + className + "." + field.name);
 
 				obj[field.name] = generateFuzzValue(className);
 			}
@@ -140,19 +167,19 @@
 			// Generate random values and pass them to the function
 			function fuzzRandomMethod(obj, className) {
 				const methods = knownClasses[className].methods;
-				const method = methods[Math.floor(Math.random() * methods.length)];
+				const method = methods[Math.floor(randomFn() * methods.length)];
 
-				// console.log("Fuzzing method " + className + "." + method.name);
+				log("Fuzzing method " + className + "." + method.name);
 
 				tryMethodCount += 1;
 				try {
 					let amt = method.args;
 
 					// Occassionally clip off the end
-					if ( Math.random() > 0.9 ) {
-						amt = Math.floor(amt * Math.random()) + 1;
+					if ( randomFn() > 0.9 ) {
+						amt = Math.floor(amt * randomFn()) + 1;
 					}
-					
+
 					const args = generateMultipleFuzzValue(amt, className);
 					const output = obj[method.name].apply(obj, args);
 
@@ -177,7 +204,7 @@
 
 				try {
 					// This can be changed to get different results
-					if ( Math.random() > 0.8 ) {
+					if ( randomFn() > 0.8 ) {
 						fuzzRandomField(obj, className);
 					}
 					else {
@@ -189,15 +216,27 @@
 				}
 			}
 
-			function initCanvasFuzz() {
-				canvas = document.getElementById('cnv');
-				context = canvas.getContext('2d');
+			function initFuzz(type) {
+				// Load the context object to fuzz
+				if ( type == "canvas" ) {
+					canvas = document.getElementById('cnv');
+					context = canvas.getContext('2d');
+				}
+				else if ( type == "webaudio" ) {
+					context = new (window.AudioContext || window.webkitAudioContext)();
+				}
 
+				// Generate a seed and pass to the random number generator
+				let seed = Math.floor(Math.random() * 10000);
+				document.getElementById('seed').innerHTML = seed;
+				randomFn = Math.seed(seed);
+
+				// Explore the object
 				exploreObject(context);
-
 				
 				let fuzzOps = 0;
 
+				// Idk why this is 10.
 				for ( let i = 0; i < 10; i++ ) {
 					window.setInterval(() => {
 						fuzzObject(context);
@@ -205,9 +244,11 @@
 					}, 1);
 				}
 
+				// Interface interval
 				window.setInterval(() => {
 					document.getElementById("fops").innerHTML = fuzzOps.toString();
 					document.getElementById("success").innerHTML = ((successMethodCount / tryMethodCount) * 100).toFixed(2);
+					document.getElementById("logs").innerHTML = logList;
 
 					fuzzOps = 0;
 					successMethodCount = 0;
@@ -218,15 +259,23 @@
 		</script>
 	</head>
 
-	<body onload="initCanvasFuzz()">
+	<body onload="initFuzz('canvas')">
+		<h2>Avi's HTML5 Canvas Fuzzer</h2>
+		<hr>
 		<p>
-			Currently doing <span id="fops"></span> FOPS
+			Currently doing <b><span id="fops">...</span></b> FOPS<br>
+			Currently running at <b><span id="success">...</span></b>% success<br>
+			Currently using seed <b><span id="seed">...</span></b>
 		</p>
+
 		<p>
-			Currently running at <span id="success"></span>% success
+			<b>Current HTML5 canvas output</b><br>
+			<canvas width="100" height="100" id="cnv" style="border-style: solid;"></canvas>
 		</p>
+
 		<p>
-			<canvas width="640" height="480" id="cnv"></canvas>
+			<b>Logs</b>
+			<textarea id="logs" rows=50 cols=100 style="border-style: solid;"></textarea>
 		</p>
 	</body>
 </html>
