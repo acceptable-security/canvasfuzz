@@ -60,9 +60,17 @@
 				}
 			}
 
-			// Generate a value to fuzz a function with
-			function generateFuzzValue(className) {
-				const num_generators = [
+			// All the generators
+			let num_generators;
+			let void_generators;
+			let str_generators;
+			let list_generators;
+			let other_generators;
+			let all_generators;
+
+			// Generate the fuzzers
+			function initFuzzGenerators() {
+				num_generators = [
 					() => 1,
 					() => -1,
 					() => -1.000000001,
@@ -74,13 +82,17 @@
 					randomFn
 				];
 
-				const void_generators = [
+				void_generators = [
 					() => null,
 					() => undefined,
 					() => NaN,
 				]
 
-				const str_generators = [
+				str_generators = [
+					() => 'pink',
+					() => 'blue',
+					() => 'black',
+					() => 'https://i.imgur.com/PqntHMn.png',
 					() => "",
 					() => "hello my name is fuzzio",
 					() => '#abc',
@@ -96,17 +108,7 @@
 					}
 				];
 
-				const list_generators = [
-					() => {
-						return generateMultipleFuzzValue(Math.floor(randomFn() * 20), className).join(' ');
-					}
-				];
-
-				const generators = [
-					() => 'pink',
-					() => 'blue',
-					() => 'black',
-					() => 'https://i.imgur.com/PqntHMn.png',
+				list_generators = [
 					() => [],
 					() => [1],
 					() => {
@@ -118,6 +120,12 @@
 
 						return l
 					},
+					() => {
+						return generateMultipleFuzzValue(Math.floor(randomFn() * 20), className).join(' ');
+					}
+				];
+
+				other_generators = [
 					() => {
 						const exampleOutputs = knownClasses[className].outputs;
 
@@ -138,8 +146,17 @@
 					() => new Uint8Array(Math.floor(randomFn() * 1000000))
 				];
 
-				const rand = Math.floor(randomFn() * generators.length);
-				return generators[rand]();
+				all_generators = num_generators.concat(void_generators)
+											   .concat(str_generators)
+											   .concat(list_generators)
+											   .concat(other_generators);
+			}
+
+
+			// Generate a value to fuzz a function with
+			function generateFuzzValue(className) {
+				const rand = Math.floor(randomFn() * all_generators.length);
+				return all_generators[rand]();
 			}
 
 			// Generate N fuzz values
@@ -217,6 +234,8 @@
 			}
 
 			function initFuzz(type) {
+				initFuzzGenerators();
+
 				// Load the context object to fuzz
 				if ( type == "canvas" ) {
 					canvas = document.getElementById('cnv');
